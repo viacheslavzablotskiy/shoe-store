@@ -17,14 +17,14 @@ class TitleSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = Title
-        fields = ("model", "price", "brand", "title", "size")
+        model = Product
+        fields = ("model", "price", "brand", "name", "size")
 
-    def create(self, validated_data: Dict):
-        price_minimum = Price.objects.all().order_by("price")
-        self.price = price_minimum
-        return Title.objects.create(size=tuple(self.price),
-                                    **validated_data)
+
+class ProductAll(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = "__all__"
 
 
 class BrandSerializer(serializers.ModelSerializer):
@@ -33,21 +33,9 @@ class BrandSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-# class OfferSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Offer
-#         fields = '__all__'
-
-
-class ModelSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ModelTitle
-        fields = '__all__'
-
-
 class SizeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Size
         fields = '__all__'
 
-# SizeSerializer(instance).data
+
