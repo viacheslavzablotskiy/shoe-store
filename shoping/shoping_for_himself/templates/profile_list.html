@@ -1,0 +1,13 @@
+{% for profile in profiles %}
+
+    <div class="block">
+        <div class="card">
+            <a href="{% url 'profile' profile.id %}">
+                <div class="card-content">
+                    <!-- ... More card code -->
+                </div>
+            </a>
+        </div>
+    </div>
+
+{% endfor %}

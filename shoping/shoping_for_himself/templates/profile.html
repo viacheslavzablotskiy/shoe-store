@@ -1,0 +1,9 @@
+<!-- dwitter/templates/dwitter/profile_list.html -->
+
+<!-- ... -->
+
+<ul>
+{% for following in profile.follows.all %}
+    <li>{{ following }}</li>
+{% endfor %}
+</ul>
