@@ -28,5 +28,5 @@ urlpatterns = [
                   path('user/', UserRetrieveUpdateAPIView.as_view(), name='user'),
                   path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
                   path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-              ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+              ]  + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 # urlpatterns += router.urls
