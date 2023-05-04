@@ -1,0 +1,25 @@
+{% extends "login.html" %}
+
+
+{% block title %}
+<ol>
+    <li>tabke</li>
+    <li>desk</li>
+    <li>floor</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+    <div class="page">
+        <h1>Users</h1>
+            {% for el in news %}
+                {% if  el.is_superuser %}
+                <div class="alert alert-warning">
+                    <h3>{{ el.email }} </h3>
+                    <p>{{ el.username }}</p>
+                    <a href="{% url 'login-details' el.id %}" class="btn btn-warning"> SEE this users</a>
+                </div>
+                {% endif %}
+            {% endfor %}
+    </div>
+{% endblock %}

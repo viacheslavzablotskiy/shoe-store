@@ -15,6 +15,4 @@ from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'shoping.settings')
 
-application = ProtocolTypeRouter({
-  'http': get_asgi_application(),
-})
+application = get_wsgi_application()

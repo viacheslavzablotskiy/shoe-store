@@ -1,6 +1,11 @@
 # from http.client import HTTPResponse
 import time
+from typing import Any
 
+from django.views.generic import DetailView
+
+from .forms import TrackForm
+from rest_framework.exceptions import ValidationError
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash, login
 from django.contrib.auth.decorators import login_required
@@ -13,14 +18,15 @@ from django.shortcuts import redirect, render
 from django.template.loader import render_to_string
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
-from rest_framework import mixins, viewsets, status, request, permissions, views
+from rest_framework import mixins, viewsets, status, request, permissions, views, generics, parsers
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
-from rest_framework.generics import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import get_object_or_404, RetrieveUpdateAPIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .renderers import UserJSONRenderer
 from .serializers import *
 from shoping_for_himself.serializers import LoginSerializer
 from shoping_for_himself.models import *
@@ -29,234 +35,197 @@ from django.utils.translation import gettext_lazy
 from rest_framework.response import Response
 
 
-def profile(request, pk):
-    profile = Profile.objects.get(pk=pk)
-    # return HttpResponse(f"{profile}")
-
-    return render(request, "profile.html", {"profile": profile})
-
-
-def profile_list(request):
-    profiles = Profile.objects.exclude(user=request.user)
-    return render(request, "profile_list.html", {"profiles": profiles})
+def loginn(request):
+    """ Страница входа через Google
+    """
+    data = "Hello"
+    news = User.objects.all()
+    return render(request, 'login.html', {"title": "ghbdtn"})
 
 
-def dashboard(request):
-    return render(request, "base.html")
+def news_home(request):
+    return render(request, "new_news.html")
 
 
-def index_view(request):
-    return render(request, 'index.html', {
-        'rooms': Room.objects.all(),
-    })
+class NewDetails(DetailView):
+    model = User
+    template_name = "my_truck.html"
+    context_object_name = "article"
 
 
-def room_view(request, room_name):
-    chat_room, created = Room.objects.get_or_create(name=room_name)
-    return render(request, 'room.html', {
-        'room': chat_room,
-    })
-
-
-# from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-# from rest_auth.registration.views import SocialLoginView
-#
-#
-# class GoogleLogin(SocialLoginView):
-#     adapter_class = GoogleOAuth2Adapter
-
-
-class PriceTitle(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,
-                 viewsets.GenericViewSet):
-    queryset = Price.objects.all()
-    serializer_class = ProfileSerializers
-    permission_classes = (IsAuthenticated,
-                          )
-
-
-class Profile_list(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,
-                 viewsets.GenericViewSet):
-    queryset = Profile.objects.all()
-    serializer_class = PriceSerializer
-    permission_classes = (IsAuthenticated,
-                          )
-
-
-class ListProduct(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = Brand.objects.all()
-    serializer_class = BrandSerializer
-    permission_classes = (IsAuthenticated,
-                          )
-
-    def retrieve(self, request, *args, **kwargs):
-        obj = self.get_object()
-        obj.count = obj.count + 1
-        obj.save(update_fields=("count",))
-        return super().retrieve(request, *args, **kwargs)
-
-
-#
-
-class SizeTitle(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,
-                viewsets.GenericViewSet):
-    queryset = Brand.objects.all()
-    serializer_class = BookSerializer
-    permission_classes = (IsAuthenticated,
-                          )
-
-    def create(self, request):
-        user = request.user
-        send_mail('Verify your QuickPublisher account',
-                  'Follow this link to verify your account: '
-                  'http://localhost:8000%s' % reverse("price-list"),
-                  'zlava.mag@gmail.com',
-                  [user.email],
-                  fail_silently=False,
-                  )
-        return HttpResponse("привет")
-
-
-# def change_password(request):
-#     if request.method == 'POST':
-#         form = PasswordChangeForm(request.user, request.POST)
-#         if form.is_valid():
-#             user = form.save()
-#             update_session_auth_hash(request, user)  # Important!
-#             messages.success(request, 'Your password was successfully updated!')
-#             return redirect('change_password')
-#         else:
-#             messages.error(request, 'Please correct the error below.')
-#     else:
-#         form = PasswordChangeForm(request.user)
-#     return redirect("password_change")
-
-def password_reset_request(request):
+def create_track(request):
+    error = ''
     if request.method == "POST":
-        password_reset_form = PasswordResetForm(request.POST)
-        if password_reset_form.is_valid():
-            data = password_reset_form.cleaned_data['email']
-            associated_users = User.objects.filter(Q(email=data))
-            if associated_users.exists():
-                for user in associated_users:
-                    subject = "Password Reset Requested"
-                    # email_template_name = "main/password/password_reset_email.txt"
-                    c = {
-                        "email": user.email,
-                        'domain': '127.0.0.1:8000',
-                        'site_name': 'Website',
-                        "uid": urlsafe_base64_encode(force_bytes(user.pk)),
-                        "user": user,
-                        'token': default_token_generator.make_token(user),
-                        'protocol': 'http',
-                    }
-                    try:
-                        send_mail(subject, c, 'zlava.mag@gmail.com', [user.email], fail_silently=False)
-                    except BadHeaderError:
-                        return HttpResponse('Invalid header found.')
-                    return redirect("/password_reset/done/")
-    password_reset_form = PasswordResetForm()
-    return redirect("password_reset")
+        form = TrackForm(request.POST)
+        # if request.user.is_authenticated():
+        if form.is_valid():
+            new_posts = form.save(commit=False)
+            new_posts.user = request.user
+            new_posts.save()
+            return redirect("login_template")
+        else:
+            error = "Form is not correct"
+        # else:
+        #     raise
+
+    form = TrackForm()
+
+    data = {
+        "form": form,
+        "error": error
+    }
+    return render(request, "truck.html", data)
 
 
-def setsession(request):
-    request.session['username'] = 'irfan'
-    request.session['email'] = 'irfan.sssit@gmail.com'
-    return HttpResponse("session is set")
+def example(request):
+    """ Страница входа через Google
+    """
+    news = User.objects.all()
+    return render(request, 'example.html', {"news": news})
 
 
-def updating_cookie(request):
-    html = HttpResponse("We are updating  the cookie which is set before")
-    html.set_cookie('JavaTpoint', 'Updated Successfully')
-    return html
+def total(request):
+    """ Страница входа через Google
+    """
+
+    return render(request, 'total.html')
 
 
-def getsession(request):
-    studentname = request.session['username']
-    studentemail = request.session['email']
-    return HttpResponse(studentname + " " + studentemail)
+class PostList(generics.ListCreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = RegistrationSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        user = self.request.user
+        return User.objects.filter(user=user)
 
 
-def setcookie(request):
-    time.sleep(10)
-    html = HttpResponse("<h1>Dataflair Django Tutorial</h1>")
-    if request.COOKIES.get('visits'):
-        html.set_cookie('dataflair', 'Welcome Back')
-        value = int(request.COOKIES.get('visits'))
-        html.set_cookie('visits', value + 1)
-    else:
-        value = 1
-        text = "Welcome for the first time"
-        html.set_cookie('visits', value)
-        html.set_cookie('dataflair', text)
-    return html
+class RegistrationAPIView(APIView):
+    permission_classes = (AllowAny,)
+    # renderer_classes = (UserJSONRenderer,)
+    serializer_class = RegistrationSerializer
 
+    def post(self, request):
+        user = request.data.get('user', {})
 
-def showcookie(request):
-    if request.COOKIES.get('visits') is not None:
-        value = request.COOKIES.get('visits')
-        text = request.COOKIES.get('dataflair')
-        html = HttpResponse(
-            "<center><h1>{0}<br>You have requested this page {1} times</h1></center>".format(text, value))
-        html.set_cookie('visits', int(value) + 1)
-        return html
-    else:
-        return redirect('setcookie')
-
-
-class LoginView(views.APIView):
-    # This view should be accessible also for unauthenticated users.
-    permission_classes = (permissions.AllowAny,)
-
-    def post(self, request, format=None):
-        serializer = LoginSerializer(data=self.request.data,
-                                     context={'request': self.request})
+        # Паттерн создания сериализатора, валидации и сохранения - довольно
+        # стандартный, и его можно часто увидеть в реальных проектах.
+        serializer = self.serializer_class(data=user)
         serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        login(request, user)
-        return Response(None, status=status.HTTP_202_ACCEPTED)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class ExampleView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
-    permission_classes = [IsAuthenticated]
+class LoginUser(generics.ListCreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = LoginSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
-    def get(self, request, format=None):
-        content = {
-            'user': str(request.user),  # `django.contrib.auth.User` instance.
-            'auth': str(request.auth),  # None
-        }
-        return Response(content)
+    def perform_create(self, request: Request) -> Response:
+        """Return user after login."""
+        user = request.data.get('user', {})
 
-# def login(request):
-#     if request.method != 'POST' and request.method != 'GET':
-#         raise Http404('Only POSTs are allowed')
-#     try:
-#         m = User.objects.get(username=request.POST['username'])
-#         if m.password == request.POST['password']:
-#             request.session['member_id'] = m.id
-#             return HttpResponseRedirect('/you-are-logged-in/')
-#     except User.DoesNotExist:
-#         return HttpResponse("Your username and password didn't match.")
-# # @login_required
-# def password_change(request):
-#     user = request.user
-#     form = SetPasswordForm(user)
-#     return form
-#
-#     def get(self):
-#         return SetPassword.objects.all()
-#
-#
+        serializer = self.serializer_class(data=user)
+        if not serializer.is_valid():
+            print(serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# class TitleForPeople(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-#     queryset = Product.objects.all()
-#     serializer_class = ProductAll()
-#     permission_classes = (IsAuthenticated,
-#                           )
-#
-#
-# class BrandForPeople(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-#     queryset = Brand.objects.all()
-#     serializer_class = BrandSerializer
-#     permission_classes = (IsAuthenticated,
-#                           )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class LoginAPIView(APIView):
+    permission_classes = (AllowAny,)
+    # renderer_classes = (UserJSONRenderer,)
+    serializer_class = LoginSerializer
+
+    def post(self, request: Request) -> Response:
+        """Return user after login."""
+        user = request.data.get('user', {})
+
+        serializer = self.serializer_class(data=user)
+        if not serializer.is_valid():
+            print(serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UpdateUser(viewsets.ModelViewSet):
+    """ Просмотр и редактирование данных пользователя
+    """
+    parser_classes = (parsers.MultiPartParser,)
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user.username
+        my_models = User.objects.filter(username=user)
+
+        if my_models.exists():
+            my_models = my_models[0]
+            return my_models
+
+    def get_object(self):
+        return self.get_queryset()
+
+    # def update(self, request: Request, *args: dict[str, Any], **kwargs: dict[str, Any]) -> Response:
+    #     """Return updated user."""
+    #     serializer_data = request.data.get('user', {})
+    #
+    #     serializer = self.serializer_class(
+    #         request.user, data=serializer_data, partial=True, context={'request': request}
+    #     )
+    #     serializer.is_valid(raise_exception=True)
+    #     serializer.save()
+    #
+    #     return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserRetrieveUpdateAPIView(RetrieveUpdateAPIView):
+    permission_classes = (IsAuthenticated,)
+    # renderer_classes = (UserJSONRenderer,)
+    serializer_class = UserSerializer
+
+    def retrieve(self, request: Request, *args: dict[str, Any], **kwargs: dict[str, Any]) -> Response:
+        """Return user on GET request."""
+        serializer = self.serializer_class(request.user, context={'request': request})
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def update(self, request: Request, *args: dict[str, Any], **kwargs: dict[str, Any]) -> Response:
+        """Return updated user."""
+        serializer_data = request.data.get('user', {})
+
+        serializer = self.serializer_class(
+            request.user, data=serializer_data, partial=True, context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class LogoutAPIView(APIView):
+    serializer_class = LogoutSerializer
+
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request: Request) -> Response:
+        """Validate token and save."""
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TrackView(mixins.CreateModelMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = Track.objects.all()
+    serializer_class = TrackSerializers
+    permission_classes = [IsAuthenticated, ]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Track.objects.filter(user=user)

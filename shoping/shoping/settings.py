@@ -46,6 +46,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "rest_framework",
     "shoping_for_himself.apps.ShopingForHimselfConfig",
+    "news.apps.NewsConfig",
+    "offer.apps.OfferConfig",
     "djoser",
     "rest_framework_simplejwt.token_blacklist",
     "social_django",
@@ -88,7 +90,7 @@ SOCIALACCOUNT_PROVIDERS = {
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'shoping/templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -111,7 +113,7 @@ WSGI_APPLICATION = 'shoping.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DATABASE', 'magazine_store'),
+        'NAME': os.environ.get('POSTGRES_DATABASE', 'example_templates'),
         'USER': os.environ.get('POSTGRES_USER', 'postgres'),
         'PASSWORD': os.environ.get('POSTGRES_PASSWORD', '286226'),
         'HOST': os.environ.get('POSTGRES_HOST', '127.0.0.1'),
@@ -178,6 +180,9 @@ SOCIAL_AUTH_PIPELINE = [
     'social_core.pipeline.user.user_details',
 ]
 STATIC_URL = 'static/'
+STATICFILES_DIRS = [
+    BASE_DIR / "shoping/static/",
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
@@ -234,5 +239,4 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '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'
 # EMAIL_HOST_PASSWORD=wvikilbsemvvnzxt
 # EMAIL_PORT=587
 AUTH_USER_MODEL = "shoping_for_himself.User"
-WSGI_APPLICATION = 'shoping.wsgi.application'
 ASGI_APPLICATION = 'shoping.asgi.application'

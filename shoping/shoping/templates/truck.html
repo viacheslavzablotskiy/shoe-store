@@ -1,0 +1,26 @@
+{% extends "login.html" %}
+
+{% block title %}
+<ol>
+    <li>tabke</li>
+    <li>desk</li>
+    <li>floor</li>
+</ol>
+{% endblock %}
+
+{% block content %}
+    <div class="page">
+        {% if user.is_authenticated or article.article_access %}
+            <form method="post">
+                <h1>Create Truck</h1>
+                <p></p>
+                {{ form.name }}<br>
+                <span>{{ error }}</span>
+                <button class="btn btn-success" type="submit">Add new truck</button>
+                {% csrf_token %}
+            </form>
+        {% else %}
+            <h1>You are not authorization</h1>
+        {% endif %}
+    </div>
+{% endblock %}

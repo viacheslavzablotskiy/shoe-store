@@ -1,0 +1,55 @@
+<!-- dwitter/templates/dwitter/profile_list.html -->
+
+<!-- ... -->
+
+<ul>
+{% for following in profile.follows.all %}
+    <li>{{ following }}</li>
+{% endfor %}
+</ul>
+
+
+<h1><a href="/">Hello my friends</a></h1>
+<p> You sre change
+    <select name="You are change">
+        <option> Rock</option>
+        <option>Finny</option>
+        <option>White</option>
+        <option>Back</option>
+    </select>
+
+</p>
+<p> You sre change
+    <select name="You are change" size="4" multiple>
+        <option value="1" selected="selected"> Rock </option>
+        <option value="2" selected="selected">Finny</option>
+        <option value="3"> White</option>
+        <option value="4"> Back</option>
+    </select>
+</p>
+
+
+<h1><a href="/">Django Girls Blog</a></h1>
+<form>
+    <input type="radio" name="True/False" value="True" checked="checked">True
+    <input type="radio" name="True/False" value="False">False
+</form>
+<h2>You are change</h2>
+<form>
+    <input type="checkbox" name="True/False" >Rock
+    <input type="checkbox" name="True/False" >Finny
+</form>
+<form>
+    Name<br>
+    <input type="text" name="firstname" id="firstname" maxlength="100"><br>
+    Password<br>
+    <input type="text" name="firstname" id="lastname" maxlength="50"><br>
+    Password_2<br>
+    <input type="password" name="password"><br>
+    <input type="submit" value="Sing up">
+    <input type="reset">
+</form>
+
+<textarea rows="5" cols="10">
+    Goodbye my friends and i want tell tou that this is not correctly
+</textarea>

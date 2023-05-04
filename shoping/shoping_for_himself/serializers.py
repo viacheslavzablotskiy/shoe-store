@@ -1,173 +1,151 @@
 from abc import ABC
 from datetime import datetime
 from typing import Dict
-
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.forms import SetPasswordForm
-from rest_framework import serializers
+from rest_framework import serializers, exceptions
 from .models import *
+from .utils import validate_email as email_is_valid
 
 
-class PriceSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = Price
-        fields = ["size", "price", "brand"]
-        extra_kwargs = {
-            'url': {'view_name': 'brand-detail'},
-            'users': {'lookup_field': ''}
-        }
+class RegistrationSerializer(serializers.ModelSerializer[User]):
+    """Serializers registration requests and creates a new user."""
 
-
-class BrandSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Brand
-        fields = '__all__'
-
-
-class ProfileSerializers(serializers.ModelSerializer):
-    class Meta:
-        model = Profile
-        fields = '__all__'
-
-
-class BookListSerializer(serializers.ListSerializer):
-    def create(self, validated_data):
-        books = [Price(**item) for item in validated_data]
-        return Price.objects.create(books)
-
-
-class BookSerializer(serializers.ModelSerializer):
-    poc = serializers.HyperlinkedRelatedField(
-        many=True,
-        read_only=True,
-        view_name='price-detail'
-    )
+    password = serializers.CharField(max_length=128, min_length=8, write_only=True)
 
     class Meta:
-        model = Brand
-        fields = ["brand", "poc", ]
+        model = User
+        fields = [
+            'email',
+            'username',
+            'password',
+            'bio',
+            'full_name',
+        ]
 
-
-class SetPassword(SetPasswordForm):
-    class Meta:
-        model = get_user_model()
-        fields = ['new_password1', 'new_password2']
-
-
-class LoginSerializer(serializers.ModelSerializer):
-    """
-    This serializer defines two fields for authentication:
-      * username
-      * password.
-    It will try to authenticate the user with when validated.
-    """
-    username = serializers.CharField(
-        label="Username",
-        write_only=True
-    )
-    password = serializers.CharField(
-        label="Password",
-        # This will be used when the DRF browsable API is enabled
-        style={'input_type': 'password'},
-        trim_whitespace=False,
-        write_only=True
-    )
-
-    def validate(self, attrs):
-        # Take username and password from request
-        username = attrs.get('username')
-        password = attrs.get('password')
-
-        if username and password:
-            # Try to authenticate the user using Django auth framework.
-            user = authenticate(request=self.context.get('request'),
-                                username=username, password=password)
-            if not user:
-                # If we don't have a regular user, raise a ValidationError
-                msg = 'Access denied: wrong username or password.'
-                raise serializers.ValidationError(msg, code='authorization')
+    def validate_email(self, value: str) -> str:
+        """Normalize and validate email address."""
+        valid, error_text = email_is_valid(value)
+        if not valid:
+            raise serializers.ValidationError(error_text)
+        try:
+            email_name, domain_part = value.strip().rsplit('@', 1)
+        except ValueError:
+            pass
         else:
-            msg = 'Both "username" and "password" are required.'
-            raise serializers.ValidationError(msg, code='authorization')
-        # We have a valid user, put it in the serializer's validated_data.
-        # It will be used in the view.
-        attrs['user'] = user
+            value = '@'.join([email_name, domain_part.lower()])
+
+        return value
+
+    # def create(self, validated_data):
+    #     # Использовать метод create_user, который мы
+    #     # написали ранее, для создания нового пользователя.
+    #     return User.objects.create_user(**validated_data)
+    def create(self, validated_data):  # type: ignore
+        """Return user after creation."""
+        user = User.objects.create_user(
+            username=validated_data['username'], email=validated_data['email'], password=validated_data['password']
+        )
+        user.bio = validated_data.get('bio', '')
+        user.full_name = validated_data.get('full_name', '')
+        user.save(update_fields=['bio', 'full_name'])
+        return user
+
+
+class LoginSerializer(serializers.ModelSerializer[User]):
+    email = serializers.CharField(max_length=255)
+    username = serializers.CharField(max_length=255, read_only=True)
+    password = serializers.CharField(max_length=128, write_only=True)
+
+    tokens = serializers.SerializerMethodField()
+
+    def get_tokens(self, obj):  # type: ignore
+        """Get user token."""
+        user = User.objects.get(email=obj.email)
+
+        return {'refresh': user.tokens['refresh'], 'access': user.tokens['access']}
+
+    class Meta:
+        model = User
+        fields = ['email', 'username', 'password', 'tokens', 'full_name']
+
+    def validate(self, data):  # type: ignore
+        """Validate and return user login."""
+        email = data.get('email', None)
+        password = data.get('password', None)
+        if email is None:
+            raise serializers.ValidationError('An email address is required to log in.')
+
+        if password is None:
+            raise serializers.ValidationError('A password is required to log in.')
+
+        user = authenticate(username=email, password=password)
+
+        if user is None:
+            raise serializers.ValidationError('A user with this email and password was not found.')
+
+        if not user.is_active:
+            raise serializers.ValidationError('This user is not currently activated.')
+
+        return user
+
+
+class UserSerializer(serializers.ModelSerializer[User]):
+    """Handle serialization and deserialization of User objects."""
+
+    password = serializers.CharField(max_length=128, min_length=8, write_only=True)
+
+    class Meta:
+        model = User
+        fields = (
+            'id',
+            'email',
+            'username',
+            'password',
+            'tokens',
+            'bio',
+            'full_name',
+            'birth_date',
+            'is_staff',
+        )
+        read_only_fields = ('tokens', 'is_staff')
+
+    def update(self, instance, validated_data):  # type: ignore
+        """Perform an update on a User."""
+
+        password = validated_data.pop('password', None)
+
+        for (key, value) in validated_data.items():
+            setattr(instance, key, value)
+
+        if password is not None:
+            instance.set_password(password)
+
+        instance.save()
+
+        return instance
+
+
+class LogoutSerializer(serializers.Serializer[User]):
+    refresh = serializers.CharField()
+
+    def validate(self, attrs):  # type: ignore
+        """Validate token."""
+        self.token = attrs['refresh']
         return attrs
-# create a object
+
+    def save(self, **kwargs):  # type: ignore
+        """Validate save backlisted token."""
+
+        try:
+            RefreshToken(self.token).blacklist()
+
+        except TokenError as ex:
+            raise exceptions.AuthenticationFailed(ex)
 
 
-# class BookSerializer(serializers.Serializer):
-#     size = serializers.CharField(max_length=255)
-#     price = serializers.DecimalField(max_digits=5, decimal_places=2)
-#     brand = models.ForeignKey("Brand", null=True, blank=True, on_delete=models.SET_NULL)
-#     # class CommentSerializer(serializers.Serializer):
-#     #     email = serializers.EmailField()
-#     #     content = serializers.CharField(max_length=200)
-#     #     created = serializers.DateTimeField()
-#
-#     def create(self, validated_data):
-#         return Price(**validated_data)
-#
-#     def update(self, instance, validated_data):
-#         instance.size = validated_data.get('size', instance.size)
-#         instance.price = validated_data.get('price', instance.price)
-#         instance.brand = validated_data.get('brand', instance.brand)
-#         return instance
-
-# def get(self):
-#     return Price.objects.all()
-
-#
-# class Comment(object):
-#     def __init__(self, size, price, time=None):
-#         self.email = size
-#         self.content = price
-#         self.created = time or datetime.now()
-# class Meta:
-#     model = Price
-#     fields = ['size', "price"]
-# def create(self, validated_data):
-#     books = [Price(**item) for item in validated_data]
-#     return Price.objects.create(books)
-
-# def create(self, validated_data):
-#     return Price(**validated_data)
-# url = serializers.HyperlinkedIdentityField(
-#     view_name='accounts',
-#     lookup_field='slug'
-# )
-# users = serializers.HyperlinkedRelatedField(
-#     view_name='user-detail',
-#     lookup_field='username',
-#     many=True,
-#     read_only=True
-# )
-
-# class Meta:
-#     model = Account
-#     fields = ['url', 'account_name', 'users', 'created']
-
-# class TitleSerializer(serializers.ModelSerializer):
-#     price = serializers.DecimalField(max_digits=5, decimal_places=2)
-#     size = serializers.ListField(
-#         child=serializers.ReadOnlyField(read_only=True)
-#     )
-#
-#     class Meta:
-#         model = Product
-#         fields = ("model", "price", "brand", "name", "size")
-#
-#
-# class ProductAll(serializers.ModelSerializer):
-#     class Meta:
-#         model = Product
-#         fields = "__all__"
-#
-#
-
-#
-#
-# class SizeSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Size
-#         fields = '__all__'
+class TrackSerializers(serializers.ModelSerializer):
+    class Meta:
+        model = Track
+        fields = '__all__'
